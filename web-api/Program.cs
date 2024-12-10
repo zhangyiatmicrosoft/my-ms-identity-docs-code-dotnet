@@ -40,6 +40,28 @@ app.MapGet("/weatherforecast", [Authorize(Policy = "AuthZPolicy")] () =>
     return forecast;
 })
 .WithName("GetWeatherForecast");
+
+app.MapGet("/", () =>
+{
+    var content = DateTime.Now.ToString();
+    return content;
+})
+.WithName("Root");
+
+//app.MapGet("/weatherforecast", () =>
+//{
+//    var forecast = Enumerable.Range(1, 5).Select(index =>
+//       new WeatherForecast
+//       (
+//           DateTime.Now.AddDays(index),
+//           Random.Shared.Next(-20, 55),
+//           weatherSummaries[Random.Shared.Next(weatherSummaries.Length)]
+//       ))
+//        .ToArray();
+//    return forecast;
+//})
+//.WithName("GetWeatherForecast");
+
 // </ms_docref_protect_endpoint>
 
 app.Run();
