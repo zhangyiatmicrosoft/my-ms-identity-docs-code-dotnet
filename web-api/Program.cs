@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
+using System.IdentityModel.Tokens.Jwt;
 // </ms_docref_import_types>
 
 // <ms_docref_add_msal>
@@ -18,10 +19,13 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // policyBuilder.Requirements.Add(new ScopeAuthorizationRequirement() { RequiredScopesConfigurationKey = $"AzureAd:Scopes" });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-    // .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+// .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
-builder.Services.AddSingleton<
-    IAuthorizationMiddlewareResultHandler, SampleAuthorizationMiddlewareResultHandler>();
+// builder.Services.AddSingleton<
+//    IAuthorizationMiddlewareResultHandler, SampleAuthorizationMiddlewareResultHandler>();
+
+//builder.Services.AddSingleton<IAuthorizationHandler, MinimumAgeAuthorizationHandler>()
+//                .AddSingleton<IAuthorizationPolicyProvider, MinimumAgePolicyProvider>();
 
 builder.Services.AddAuthorization(config =>
 {
@@ -30,13 +34,40 @@ builder.Services.AddAuthorization(config =>
         {
             policyBuilder.RequireAssertion(context =>
             {
-                var allClaims = context.User.Claims;
-                var length = allClaims.Count();
-                var claimsList = allClaims.ToList();
+                var httpContext = context.Resource as HttpContext;
+                if (httpContext == null)
+                {
+                    return false;
+                }
 
-                var identities = context.User.Identities;
-                var length2 = identities.Count();
-                var identitiesList = identities.ToList();
+                var authHeader = httpContext.Request.Headers["Authorization"];
+                if (authHeader.Count == 1)
+                {
+                    var authHeaderVal = authHeader[0];
+                    if (authHeaderVal == null)
+                    {
+                        httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return false;
+                    }
+                    if (authHeaderVal.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var rawTokenString = authHeaderVal.Substring("Bearer ".Length).Trim();
+                        var token = Decoder.Decode(rawTokenString);
+                        var claims = token.Claims;
+                        foreach (var claim in claims)
+                        {
+                            Console.WriteLine($"Claim Type: {claim.Type} Claim Value: {claim.Value}");
+                        }
+                    }
+                }
+
+                //var allClaims = context.User.Claims;
+                //var length = allClaims.Count();
+                //var claimsList = allClaims.ToList();
+
+                //var identities = context.User.Identities;
+                //var length2 = identities.Count();
+                //var identitiesList = identities.ToList();
 
                 //     var valid = context.User.HasClaim(
                 //    c =>
@@ -83,7 +114,7 @@ app.MapGet("/", () =>
 })
 .WithName("Root");
 
-app.MapGet("/weatherforecast2", () =>
+app.MapGet("/weatherforecast2", [Authorize(Policy = "MinimumAge")] () =>
 {
     var forecast = Enumerable.Range(1, 5).Select(index =>
        new WeatherForecast
@@ -96,6 +127,20 @@ app.MapGet("/weatherforecast2", () =>
     return forecast;
 })
 .WithName("GetWeatherForecast2");
+
+app.MapGet("/weatherforecast3", () =>
+{
+    var forecast = Enumerable.Range(1, 5).Select(index =>
+       new WeatherForecast
+       (
+           DateTime.Now.AddDays(index),
+           Random.Shared.Next(-20, 55),
+           weatherSummaries[Random.Shared.Next(weatherSummaries.Length)]
+       ))
+        .ToArray();
+    return forecast;
+})
+.WithName("GetWeatherForecast3");
 
 // </ms_docref_protect_endpoint>
 
